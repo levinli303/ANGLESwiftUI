@@ -7,17 +7,38 @@
 
 import libEGL
 import libGLESv2
-import UIKit
 
-class RenderView: UIView {
+#if os(macOS)
+import AppKit
+#else
+import UIKit
+#endif
+
+#if os(macOS)
+typealias PlatformView = NSView
+typealias PlatformDisplayLink = CVDisplayLink
+#else
+typealias PlatformView = UIView
+typealias PlatformDisplayLink = CADisplayLink
+#endif
+
+class RenderView: PlatformView {
     private var display: EGLDisplay!
     private var surface: EGLSurface!
     private var context: EGLContext!
     private var program: GLuint!
 
+    private var displayLink: PlatformDisplayLink?
+
+#if os(macOS)
+    override func makeBackingLayer() -> CALayer {
+        return CAMetalLayer()
+    }
+#else
     override class var layerClass: AnyClass {
         return CAMetalLayer.self
     }
+#endif
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -29,6 +50,7 @@ class RenderView: UIView {
         setUp()
     }
 
+#if !os(macOS)
     override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
         guard previousTraitCollection?.displayScale != traitCollection.displayScale else {
             return
@@ -36,10 +58,14 @@ class RenderView: UIView {
 
         layer.contentsScale = traitCollection.displayScale
     }
+#endif
 
     private func setUp() {
+#if os(macOS)
+        wantsLayer = true
+#else
         layer.contentsScale = traitCollection.displayScale
-
+#endif
         guard let display = eglGetPlatformDisplay(EGLenum(EGL_PLATFORM_ANGLE_ANGLE), nil, nil) else {
             print("eglGetPlatformDisplay() returned error \(eglGetError())")
             return
@@ -94,8 +120,21 @@ class RenderView: UIView {
 
         buildShaders()
 
+        #if os(macOS)
+        CVDisplayLinkCreateWithActiveCGDisplays(&displayLink)
+        CVDisplayLinkSetOutputCallback(displayLink!, { _, _, _, _, _, pointer in
+            let view = unsafeBitCast(pointer, to: RenderView.self)
+            DispatchQueue.main.async {
+                view.displayLinkCallback()
+            }
+            return kCVReturnSuccess
+        }, UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque()))
+        CVDisplayLinkStart(displayLink!)
+        #else
         let displayLink = CADisplayLink(target: self, selector: #selector(displayLinkCallback))
         displayLink.add(to: .current, forMode: .common)
+        self.displayLink = displayLink
+        #endif
     }
 
     private func buildShaders() {
