@@ -6,4 +6,4 @@ libEGL.xcframework and libGLES.xcframework are built from the official ANGLE rep
 
 The backend of ANGLE should be Metal since CAMetalLayer is used.
 
-The sample should run on iOS/iOS Simulator/Mac/Mac Catalyst.
+The sample should run on iOS/iOS Simulator/Mac/Mac Catalyst/visionOS/visionOS Simulator.
