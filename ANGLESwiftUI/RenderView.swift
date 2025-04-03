@@ -15,8 +15,14 @@ import UIKit
 #endif
 
 #if os(macOS)
+enum DisplayLink {
+    case cv(CVDisplayLink)
+    @available(macOS 14.0, *)
+    case ca(CADisplayLink)
+}
+
 typealias PlatformView = NSView
-typealias PlatformDisplayLink = CVDisplayLink
+typealias PlatformDisplayLink = DisplayLink
 #else
 typealias PlatformView = UIView
 typealias PlatformDisplayLink = CADisplayLink
@@ -121,15 +127,23 @@ class RenderView: PlatformView {
         buildShaders()
 
         #if os(macOS)
-        CVDisplayLinkCreateWithActiveCGDisplays(&displayLink)
-        CVDisplayLinkSetOutputCallback(displayLink!, { _, _, _, _, _, pointer in
-            let view = unsafeBitCast(pointer, to: RenderView.self)
-            DispatchQueue.main.async {
-                view.displayLinkCallback()
-            }
-            return kCVReturnSuccess
-        }, UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque()))
-        CVDisplayLinkStart(displayLink!)
+        if #available(macOS 14.0, *) {
+            let displayLink = self.displayLink(target: self, selector: #selector(displayLinkCallback))
+            displayLink.add(to: .current, forMode: .common)
+            self.displayLink = .ca(displayLink)
+        } else {
+            var displayLink: CVDisplayLink?
+            CVDisplayLinkCreateWithActiveCGDisplays(&displayLink)
+            CVDisplayLinkSetOutputCallback(displayLink!, { _, _, _, _, _, pointer in
+                let view = unsafeBitCast(pointer, to: RenderView.self)
+                DispatchQueue.main.async {
+                    view.displayLinkCallback()
+                }
+                return kCVReturnSuccess
+            }, UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque()))
+            CVDisplayLinkStart(displayLink!)
+            self.displayLink = .cv(displayLink!)
+        }
         #else
         let displayLink = CADisplayLink(target: self, selector: #selector(displayLinkCallback))
         displayLink.add(to: .current, forMode: .common)
