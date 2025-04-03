@@ -155,6 +155,7 @@ class RenderView: PlatformView {
 
     private func buildShaders() {
         eglMakeCurrent(display, surface, surface, context)
+        eglSwapInterval(display, 0)
 
         let vShaderSource =
 """
