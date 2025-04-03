@@ -33,6 +33,8 @@ class RenderView: PlatformView {
     private var surface: EGLSurface!
     private var context: EGLContext!
     private var program: GLuint!
+    private var vao: GLuint!
+    private var vbo: GLuint!
 
     private var displayLink: PlatformDisplayLink?
 
@@ -190,10 +192,26 @@ void main()
         glAttachShader(program, fShader)
         glLinkProgram(program)
         self.program = program
+
+        var vao: GLuint = 0
+        var vbo: GLuint = 0
+        glGenVertexArrays(1, &vao)
+        glBindVertexArray(vao)
+        glGenBuffers(1, &vbo)
+        glBindBuffer(GLenum(GL_ARRAY_BUFFER), vbo)
+        let vertices: [Float] = [ 0.0, 0.5, 0.0, -0.5, -0.5, 0.0, 0.5, -0.5, 0.0 ]
+        glBufferData(GLenum(GL_ARRAY_BUFFER), MemoryLayout<Float>.size * vertices.count, vertices, GLenum(GL_STATIC_DRAW))
+        glVertexAttribPointer(0, 3, GLenum(GL_FLOAT), GLboolean(GL_FALSE), 0, nil)
+        glEnableVertexAttribArray(0)
+
+        self.vao = vao
+        self.vbo = vbo
+
+        glUseProgram(program)
     }
 
     @objc private func displayLinkCallback() {
-        eglMakeCurrent(display, surface, surface, context)
+        // eglMakeCurrent(display, surface, surface, context)
 
         let drawableSize = (self.layer as! CAMetalLayer).drawableSize
         glViewport(0, 0, GLsizei(drawableSize.width), GLsizei(drawableSize.height))
@@ -201,11 +219,9 @@ void main()
         glClearColor(0.0, 0.0, 0.0, 1.0)
         glClear(GLbitfield(GL_COLOR_BUFFER_BIT))
 
-        glUseProgram(program)
+        // glUseProgram(program)
+        // glEnableVertexAttribArray(0)
 
-        let vertices: [Float] = [ 0.0, 0.5, 0.0, -0.5, -0.5, 0.0, 0.5, -0.5, 0.0 ]
-        glVertexAttribPointer(0, 3, GLenum(GL_FLOAT), GLboolean(GL_FALSE), 0, vertices)
-        glEnableVertexAttribArray(0)
         glDrawArrays(GLenum(GL_TRIANGLES), 0, 3)
 
         eglSwapBuffers(display, surface)
